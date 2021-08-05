@@ -5,7 +5,6 @@ from numpy import log as ln
 from DeadExp import DeadExp
 from men_handler import MemHandler
 
-
 class DopamineHandler:
 
     def __init__(self):
