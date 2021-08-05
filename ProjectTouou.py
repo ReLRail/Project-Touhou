@@ -26,7 +26,7 @@ class ProjectTouhou:
         self.data = self.TouHou.get_window()
         self.video_handler = VideoHandler(640,480,4)
         self.net = alexnet()
-        self.moves = ([None], ['shift', 'up', 'z'], ['shift', 'down', 'z'], ['shift', 'left', 'z'], ['shift', 'right', 'z'], ['up', 'z'], ['down', 'z'], ['left', 'z'], ['right', 'z'], ['z'], ['x'])
+        self.moves = (['shift', 'up', 'z'], ['shift', 'down', 'z'], ['shift', 'left', 'z'], ['shift', 'right', 'z'], ['z'], ['x'])
         self.optimizer = optim.SGD(self.net.parameters(), lr=0.001)
         if load:
             self.net.load_state_dict(torch.load('model'))
@@ -71,17 +71,23 @@ class ProjectTouhou:
             try:
                 frame = self.get_frame()
                 target = self.dopamine_handler.get_incentive(frame, action)
-
             except DeadExp:
 
                 e = sys.exc_info()[0]
-                print(e)
+                #print(e)
                 traceback.print_exc()
 
                 self.release_input(move)
                 self.start = time.time()
+                try:
+                    loss = self.loss(action, self.dopamine_handler.stick(action))
+                    loss.backward()
+                    self.optimizer.step()
+                except:
+                    pass
+                #self.mem_handler = MemHandler()
                 time.sleep(max(1 / 4 - (time.time() - self.start), 0))
-                move = self.moves[9]
+                move = self.moves[4]
                 self.set_input(move)
                 print('=>', move)
                 self.start = time.time()
@@ -98,9 +104,15 @@ class ProjectTouhou:
                 break
 
             if target is not None:
-                loss = self.loss(action, target)
-                loss.backward()
-                self.optimizer.step()
+                try:
+                    loss = self.loss(action, target)
+                    loss.backward()
+                    self.optimizer.step()
+                except:
+                    e = sys.exc_info()[0]
+                    print(e)
+                    traceback.print_exc()
+
 
 
 
@@ -109,10 +121,10 @@ class ProjectTouhou:
             self.release_input(move)
             conf, move = torch.max(action, 1)
             move = self.moves[move[0]]
-            print(round(float(conf[0]),2), move, action)
+            #print(round(float(conf[0]),2), move, action)
             self.set_input(move)
 
-            print(1 / (time.time() - self.start))
+            #print(1 / (time.time() - self.start))
             time.sleep(max(1 / 10 - (time.time() - self.start), 0))
             self.start = time.time()
         torch.save(self.net.state_dict(), 'model')

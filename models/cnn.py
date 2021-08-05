@@ -58,5 +58,5 @@ def alexnet(pretrained: bool = False, progress: bool = True, **kwargs: Any) -> A
         pretrained (bool): If True, returns a model pre-trained on ImageNet
         progress (bool): If True, displays a progress bar of the download to stderr
     """
-    model = AlexNet(11)
+    model = AlexNet(6)
     return model

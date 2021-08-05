@@ -13,9 +13,11 @@ class DopamineHandler:
         # self.dopamine_norm = 0
         # self.memory = []
         self.last_action = []
-        self.last_hp = 10
+        self.hp = 10
         self.mem_handler = MemHandler()
         self.success = 0
+        self.power = 0
+        self.dg = 0
         # self.fig = go.FigureWidget()/////
         # self.fig.add_scatter()
         # self.fig.show()
@@ -25,8 +27,8 @@ class DopamineHandler:
         ret = [0] * len(action[0])
         ret[tmp[0]] = 1
         print('🥕', self.success)
-        return None
-        #return torch.Tensor(ret)
+        #return None
+        return torch.Tensor(ret)
 
     def stick(self, action):
         _, tmp = torch.max(action, 1)
@@ -64,10 +66,10 @@ class DopamineHandler:
         score = self.mem_handler.get_mem(offsets=[0x4A57B0])
         power = self.mem_handler.get_mem(offsets=[0x4A57E4])
 
-        if hp < self.last_hp:
-            self.last_hp = hp
+        if hp < self.hp:
+            self.hp = hp
             return self.stick(action)
-
+        self.hp = hp
         success = ln(score)
 
         _, tmper = torch.max(action, 1)
@@ -83,12 +85,21 @@ class DopamineHandler:
 
         if hp > 10:
             raise DeadExp
+        if tmper == 5 and power == 0:
+            return self.stick(action)
+        if power > self.power:
+            self.power = power
+            #return selfZ.carrot(action)
+        if dg > self.dg:
+            self.dg = dg
+            return self.carrot(action)
+        self.dg = dg
         if success > self.success:
             self.success = success
-            return self.carrot(action)
+            #return self.carrot(action)
         elif success == self.success:
             self.success = success
-            return self.soso(action)
+            #return self.soso(action)
         else:
             self.success = success
             return self.stick(action)
