@@ -1,3 +1,6 @@
+import datetime
+import glob
+import os
 import sys
 import time
 import random
@@ -12,22 +15,41 @@ from keyboard import press, release
 from DeadExp import DeadExp as DE, DeadExp
 from men_handler import MemHandler
 from models.cnn import alexnet
-from models.dopamine_handler import DopamineHandler
 from video_handler import VideoHandler
 from window_loader import WindowLoader
 import numpy as np
+from numpy import log as ln
+
 
 
 class ProjectTouhou:
 
     def __init__(self,load = False):
-        self.dopamine_handler = DopamineHandler()
         self.TouHou = WindowLoader()
         self.data = self.TouHou.get_window()
         self.video_handler = VideoHandler(640,480,4)
         self.net = alexnet()
         self.moves = (['shift', 'up', 'z'], ['shift', 'down', 'z'], ['shift', 'left', 'z'], ['shift', 'right', 'z'], ['z'], ['x'])
         self.optimizer = optim.SGD(self.net.parameters(), lr=0.001)
+        self.frame = []
+        self.frame_inv = []
+        self.move_sequels = []
+        self.death_count = 0
+
+        self.last_action = []
+        self.hp = 10
+        self.mem_handler = MemHandler()
+        self.success = 0
+        self.power = 0
+        self.dg = 0
+
+        if 'run' not in os.listdir():
+            os.mkdir('run')
+        self.path = 'run/exp'+str(len(glob.glob('run/exp*'))) + '/'
+        os.mkdir('run/exp'+str(len(glob.glob('run/exp*'))))
+        os.mkdir(self.path+'death')
+        torch.save(self.net.state_dict(), self.path + 'model@' + str(datetime.datetime.now()).replace(' ','-').replace('-','_').replace(':','_'))
+
         if load:
             self.net.load_state_dict(torch.load('model'))
 
@@ -46,19 +68,114 @@ class ProjectTouhou:
                 if i is not None:
                     release(i)
     def loss(self,output, target):
-        #print('Delt -> ',output - torch.Tensor([[0,0,0,0,1]]))
-        #print('Delt -> ',torch.abs(output - torch.Tensor([[0,0,0,0,1]])))
-        #print('Delt -> ',torch.mean(torch.abs(output - torch.Tensor([[0,0,0,0,1]]))))
-        #return torch.mean(torch.abs(output - torch.Tensor([[0,0,0,0.5,0.5]])))
         return torch.mean(torch.abs(output - target))
+
+    def carrot(self, action):
+        ret = [None]*len(action)
+        _, tmp = torch.max(action, 1)
+        for i in range(len(action)):
+            tmper = [0] * len(action[0])
+            tmper[tmp[i]] = 1
+            ret[i] = tmper
+        print('🥕', action)
+        #return None
+        return torch.Tensor(ret)
+
+    def stick(self, action):
+        ret = [None]*len(action)
+        conf, tmp = torch.max(action, 1)
+        #print(conf, tmp,action)
+        for i in range(len(action)):
+            mov = [float(x) for x in action[i]]
+            tmper = [float(conf[i]) / (len(action[i]) - 1)] * len(action[0])
+            tmper[tmp[i]] = 0
+            #print(mov,tmper)
+
+            ret[i] = np.array(mov) + np.array(tmper)
+            ret[i][tmp[i]]=0
+            #print(tmp[i],ret[i])
+        print('🏒', action)
+        return torch.Tensor(ret)
+
+    def soso(self, action):
+        print('😶', action)
+        return None
+
+    def get_incentive(self, action):
+
+        hp = self.mem_handler.get_mem(offsets=[0x4A57f4])
+        bm = self.mem_handler.get_mem(offsets=[0x4A5800])
+        dg = self.mem_handler.get_mem(offsets=[0x4A57C0])
+        score = self.mem_handler.get_mem(offsets=[0x4A57B0])
+        power = self.mem_handler.get_mem(offsets=[0x4A57E4])
+
+        if hp < self.hp:
+            self.hp = hp
+            return self.stick(action)
+        self.hp = hp
+        success = ln(score)
+
+        _, tmper = torch.max(action, 1)
+        tmper = tmper[0]
+        if not self.last_action == []:
+            if self.last_action[-1] == tmper:
+                if len(self.last_action) > 3:
+                    success = self.success - 1
+            else:
+                self.last_action = []
+        self.last_action.append(tmper)
+
+        print(self.moves[tmper], hp, bm, dg, score, ln(score), power)
+
+        if hp > 12:
+            raise DeadExp
+        if tmper == 5 and bm == 0:
+            return self.stick(action)
+        if power > self.power:
+            self.power = power
+            #return selfZ.carrot(action)
+        if dg > self.dg:
+            self.dg = dg
+            #return self.carrot(action)
+        self.dg = dg
+        if success > self.success:
+            self.success = success
+            #return self.carrot(action)
+        elif success == self.success:
+            self.success = success
+            #return self.soso(action)
+        else:
+            self.success = success
+            return self.stick(action)
+
+    def backward(self, reward):
+        for i in reversed(self.move_sequels):
+            if reward:
+                loss = self.loss(i, self.stick(i))
+            else:
+                loss = self.loss(i, self.carrot(i))
+            loss.backward()
+            self.optimizer.step()
+
+    def save_model(self):
+        torch.save(self.net.state_dict(), self.path + 'model@' + str(datetime.datetime.now()).replace(' ','-').replace('-','_').replace(':','_'))
 
     def GameOn(self):
         self.start = time.time()
         move = None
         self.optimizer.zero_grad()
         frame = self.get_frame()
-        action = self.net(torch.Tensor([np.einsum('ijk->kji', frame)]) / 255)
-        flag = True
+        ML_in = np.einsum('ijk->kji', frame)
+        for x in range(3):
+            self.frame.append(ML_in[0])
+            self.frame.append(ML_in[1])
+            self.frame.append(ML_in[2])
+        self.frame_inv = np.invert(self.frame)
+
+        print(np.array(self.frame).shape)
+
+        action = self.net(torch.Tensor([self.frame,self.frame_inv]) / 255)
+
         while(True):
             if keyboard.is_pressed('/'):  # if key 'q' is pressed
                 print('You Pressed A Key!')
@@ -70,17 +187,20 @@ class ProjectTouhou:
 
             try:
                 frame = self.get_frame()
-                target = self.dopamine_handler.get_incentive(frame, action)
+                target = self.get_incentive(action)
             except DeadExp:
-
-                e = sys.exc_info()[0]
+                if self.death_count == 10:
+                    break
+                print('Dead :3')
+                #e = sys.exc_info()[0]
                 #print(e)
-                traceback.print_exc()
+                #traceback.print_exc()
 
                 self.release_input(move)
                 self.start = time.time()
+                self.death_count += 1
                 try:
-                    loss = self.loss(action, self.dopamine_handler.stick(action))
+                    loss = self.loss(action, self.stick(action))
                     loss.backward()
                     self.optimizer.step()
                 except:
@@ -97,7 +217,7 @@ class ProjectTouhou:
                 e = sys.exc_info()[0]
                 print(e)
                 traceback.print_exc()
-                target = self.dopamine_handler.stick(action)
+                target = self.stick(action)
                 flag = False
                 print('exp and saved')
                 self.release_input(move)
@@ -109,15 +229,25 @@ class ProjectTouhou:
                     loss.backward()
                     self.optimizer.step()
                 except:
-                    e = sys.exc_info()[0]
-                    print(e)
-                    traceback.print_exc()
-
-
-
-
+                    pass
+                    #e = sys.exc_info()[0]
+                    #print(e)
+                    #traceback.print_exc()
+            self.death_count = 0
             self.optimizer.zero_grad()
-            action = self.net(torch.Tensor([np.einsum('ijk->kji',frame)])/255)
+
+            self.frame.pop(0)
+            self.frame.pop(0)
+            self.frame.pop(0)
+
+            ML_in = np.einsum('ijk->kji', frame)
+
+            self.frame.append(ML_in[0])
+            self.frame.append(ML_in[1])
+            self.frame.append(ML_in[2])
+            self.frame_inv = np.invert(self.frame)
+            action = self.net(torch.Tensor([self.frame, self.frame_inv]) / 255)
+            #print(action)
             self.release_input(move)
             conf, move = torch.max(action, 1)
             move = self.moves[move[0]]
@@ -127,7 +257,8 @@ class ProjectTouhou:
             #print(1 / (time.time() - self.start))
             time.sleep(max(1 / 10 - (time.time() - self.start), 0))
             self.start = time.time()
-        torch.save(self.net.state_dict(), 'model')
+        self.save_model()
+        torch.save(self.net.state_dict(), self.path + 'model')
 
 
 if __name__ == "__main__":

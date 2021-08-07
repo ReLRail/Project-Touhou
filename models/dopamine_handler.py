@@ -17,30 +17,43 @@ class DopamineHandler:
         self.success = 0
         self.power = 0
         self.dg = 0
+        self.moves = (['shift', 'up', 'z'], ['shift', 'down', 'z'], ['shift', 'left', 'z'], ['shift', 'right', 'z'], ['z'], ['x'])
         # self.fig = go.FigureWidget()/////
         # self.fig.add_scatter()
         # self.fig.show()
 
     def carrot(self, action):
+        ret = [None]*len(action)
         _, tmp = torch.max(action, 1)
-        ret = [0] * len(action[0])
-        ret[tmp[0]] = 1
-        print('🥕', self.success)
+        for i in range(len(action)):
+            tmper = [0] * len(action[0])
+            tmper[tmp[i]] = 1
+            ret[i] = tmper
+        print('🥕', action)
         #return None
         return torch.Tensor(ret)
 
     def stick(self, action):
-        _, tmp = torch.max(action, 1)
-        ret = [1 / (len(action[0]) - 1)] * len(action[0])
-        ret[tmp[0]] = 0
-        print('🏒', self.success)
+        ret = [None]*len(action)
+        conf, tmp = torch.max(action, 1)
+        #print(conf, tmp,action)
+        for i in range(len(action)):
+            mov = [float(x) for x in action[i]]
+            tmper = [float(conf[i]) / (len(action[i]) - 1)] * len(action[0])
+            tmper[tmp[i]] = 0
+            #print(mov,tmper)
+
+            ret[i] = np.array(mov) + np.array(tmper)
+            ret[i][tmp[i]]=0
+            #print(tmp[i],ret[i])
+        print('🏒', action)
         return torch.Tensor(ret)
 
     def soso(self, action):
-        print('😶', self.success)
+        print('😶', action)
         return None
 
-    def get_incentive(self, frame, action):
+    def get_incentive(self, action):
         '''if self.memory == []:
             self.memory.append(frame)
             return self.carrot(action)
@@ -72,6 +85,7 @@ class DopamineHandler:
         success = ln(score)
 
         _, tmper = torch.max(action, 1)
+        tmper = tmper[0]
         if not self.last_action == []:
             if self.last_action[-1] == tmper:
                 if len(self.last_action) > 3:
@@ -80,18 +94,18 @@ class DopamineHandler:
                 self.last_action = []
         self.last_action.append(tmper)
 
-        print(hp, bm, dg, score, ln(score), power)
+        print(self.moves[tmper], hp, bm, dg, score, ln(score), power)
 
-        if hp > 10:
+        if hp > 12:
             raise DeadExp
-        if tmper == 5 and power == 0:
+        if tmper == 5 and bm == 0:
             return self.stick(action)
         if power > self.power:
             self.power = power
             #return selfZ.carrot(action)
         if dg > self.dg:
             self.dg = dg
-            return self.carrot(action)
+            #return self.carrot(action)
         self.dg = dg
         if success > self.success:
             self.success = success
