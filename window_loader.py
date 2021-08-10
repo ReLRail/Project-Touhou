@@ -37,7 +37,7 @@ class WindowLoader:
         win32gui.DeleteObject(dataBitMap.GetHandle())
 
     def close(self):
-        self.dcObj.DeleteDC()
-        self.cDC.DeleteDC()
+        #self.dcObj.DeleteDC()
+        #self.cDC.DeleteDC()
         win32gui.ReleaseDC(self.hwnd, self.wDC)
         win32gui.DeleteObject(self.dataBitMap.GetHandle())

@@ -21,11 +21,15 @@ class MemHandler:
     def get_mem(self, offsets):
         pointer_value, value = self.read_process_memory(self.p_id, self.address, offsets)
         return value
-        #print(f"(Static Address) Value: {value}")
 
-        ## Re-reading the memory with the last pointer
-        # pointer_value, value = read_process_memory(p_id, pointer_value, None)
-        # print(f"(Dynamic Address) Value: {value}")
+    def get_score(self):
+        hp = self.get_mem(offsets=[0x4A57f4])
+        bm = self.get_mem(offsets=[0x4A5800])
+        dg = self.get_mem(offsets=[0x4A57C0])
+        score = self.get_mem(offsets=[0x4A57B0])
+        power = self.get_mem(offsets=[0x4A57E4])
+        print(hp, bm, dg, score, power)
+        return hp, bm, dg, score, power
 
     def get_process_by_name(self, process_name):
         """Finds the process id of the given
