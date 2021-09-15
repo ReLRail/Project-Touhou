@@ -27,7 +27,7 @@ class WindowLoader:
         dataBitMap.CreateCompatibleBitmap(dcObj, width, height)
         cDC.SelectObject(dataBitMap)
         while (True):
-            cDC.BitBlt((0, 0), (width, height), dcObj, (0 + 4, 0 + 38), win32con.SRCCOPY)
+            cDC.BitBlt((0, 0), (width, height), dcObj, (0 + 4, 0 + 26), win32con.SRCCOPY)
             # dataBitMap.SaveBitmapFile(cDC, 'screenshot.bmp')
             yield np.frombuffer(dataBitMap.GetBitmapBits(True), dtype='uint8')
 

@@ -27,6 +27,7 @@ import skimage.color
 import skimage.io
 
 
+
 def rgb2gray(rgb):
     return skimage.color.rgb2gray(rgb)
 
@@ -38,14 +39,18 @@ def save_frame(frame):
 class ProjectTouhou:
 
     def __init__(self, load=False):
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
         self.window_handler = WindowLoader()
         self.frame_handler = self.window_handler.get_window()
         self.video_handler = VideoHandler(640, 480, 4)
         self.input_handler = InputHandler()
-        self.model = models.resnet18(pretrained=True)
-        self.model.fc = nn.Linear(self.model.fc.in_features, 6)
+        self.model = models.resnext101_32x8d(pretrained=True)
+        self.available_moves = (['shift', 'up', 'z'], ['shift', 'down', 'z'], ['shift', 'left', 'z'], ['shift', 'right', 'z'], ['z'])
+        self.model.fc = nn.Linear(self.model.fc.in_features, len(self.available_moves))
         if load:
             self.model.load_state_dict(torch.load('model'))
+        self.model.cuda()
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=0.0001)
 
         #summary(self.model, (3, 460, 640))
@@ -75,7 +80,6 @@ class ProjectTouhou:
         self.success = 0
         self.power = 0
         self.dg = 0
-        self.available_moves = (['shift', 'up', 'z'], ['shift', 'down', 'z'], ['shift', 'left', 'z'], ['shift', 'right', 'z'], ['z'], ['x'])
         self.move_sequels = []
 
 
@@ -95,14 +99,14 @@ class ProjectTouhou:
         ret = [0] * len(action)
         ret[tmp] = 1
         print('🥕', action)
-        return torch.Tensor(ret)
+        return torch.tensor(ret, device=self.device)
 
     def stick(self, action):
         _, tmp = torch.max(action, 0)
         ret = [float(x) + (float(action[tmp] / (len(action) - 1))) for x in action]
         ret[tmp] = 0
         print('🏒', action)
-        return torch.Tensor(ret)
+        return torch.tensor(ret, device=self.device)
 
     def soso(self, action):
         print('😶', action)
@@ -171,6 +175,7 @@ class ProjectTouhou:
         while (True):
             if keyboard.is_pressed('/'):  # if key 'q' is pressed
                 print('You Pressed the Key! :3')
+                torch.save(self.model.state_dict(),'model')
                 break  # finishing the loop\
             self.frame = self.get_frame()
             if len(self.actions) != 0:
@@ -184,7 +189,7 @@ class ProjectTouhou:
 
             self.frames.pop(0)
             self.frames.append(rgb2gray(self.frame) / 255)
-            action = self.model(torch.Tensor([self.frames]) / 255)
+            action = self.model(torch.Tensor([self.frames]).cuda()/255)
             self.actions.append(action[0])
             if(len(self.actions)>3):
                 self.actions.pop(0)
@@ -198,7 +203,9 @@ class ProjectTouhou:
                 time.sleep(1 / 5)
             print(self.available_moves[move[0]],conf)
             # self.save_death_frame()
+            time.sleep(max(1 / 10 - (time.time() - self.start), 0))
             print(1 / (time.time() - self.start))
+
             self.start = time.time()
 
 

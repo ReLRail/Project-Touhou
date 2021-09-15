@@ -259,6 +259,6 @@ class ProjectTouhou:
 
 
 if __name__ == "__main__":
-    tmp = ProjectTouhou(load=True)
+    tmp = ProjectTouhou(load=False)
     #tmp = ProjectTouhou()
     tmp.GameOn()
