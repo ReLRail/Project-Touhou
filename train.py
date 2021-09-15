@@ -20,8 +20,6 @@ file_list = tuple(((dict[x[x.find('_')+1:x.find('.')]],Image.open(x).convert('RG
 
 print(file_list)
 
-
-
 import matplotlib.pyplot as plt
 import numpy as np
 
