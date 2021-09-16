@@ -79,6 +79,5 @@ for epoch in range(50):  # loop over the dataset multiple times
 
 print('Finished Training')
 
-
 PATH = './Touhou.pth'
 torch.save(net.state_dict(), PATH)
