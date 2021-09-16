@@ -2,10 +2,11 @@ import torch
 import torchvision
 import torchvision.transforms as transforms
 import torchvision.models as models
-
+from numpy import asarray
 import glob
-file_list = list(glob.glob('data/exp2/*.png'))
-
+file_list = list(glob.glob('data/exp1/*.png'))
+import numpy as np
+from sklearn.model_selection import train_test_split
 from PIL import Image
 
 dict = {
@@ -16,9 +17,25 @@ dict = {
     'shift_right_z': 4
     }
 
-file_list = tuple(((dict[x[x.find('_')+1:x.find('.')]],Image.open(x).convert('RGB'))for x in file_list))
+X = asarray(tuple((asarray(Image.open(x).convert('RGB')) for x in file_list )))/255
+y = asarray(tuple((dict[x[x.find('_')+1:x.find('.')]] for x in file_list)))
 
-print(file_list)
+print(len(file_list), file_list)
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.33, random_state=42)
+
+print(X_train, X_test, y_train, y_test)
+print(len(X_train), len(X_test), len(y_train), len(y_test))
+X_train = torch.tensor(np.transpose(X_train, (0,3,1,2))).float().cuda()
+X_test = torch.tensor(np.transpose(X_test, (0,3,1,2))).float().cuda()
+y_train = torch.tensor(y_train, dtype=torch.long).cuda()
+y_test = torch.tensor(y_test, dtype=torch.long).cuda()
+torch.save(X_train, 'tensor/X_train.pt')
+torch.save(X_test, 'tensor/X_test.pt')
+torch.save(y_train, 'tensor/y_train.pt')
+torch.save(y_test, 'tensor/y_test.pt')
+print(X_train.shape)
+print(y_train)
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -33,52 +50,35 @@ def imshow(img):
     plt.show()
 
 
-# get some random training images
-dataiter = iter(trainloader)
-images, labels = dataiter.next()
-
-# show images
-imshow(torchvision.utils.make_grid(images))
-# print labels
-print(' '.join('%5s' % classes[labels[j]] for j in range(batch_size)))
-
-
-
 import torch.optim as optim
 import torch.nn as nn
 import torch.nn.functional as F
 
-net = models.resnext101_32x8d(pretrained=True)
+net = models.resnet18(pretrained=True).cuda()
 
 criterion = nn.CrossEntropyLoss()
-optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
+optimizer = optim.Adam(net.parameters(), lr=0.001)
 
 
-for epoch in range(2):  # loop over the dataset multiple times
+for epoch in range(50):  # loop over the dataset multiple times
 
-    running_loss = 0.0
-    for i, data in enumerate(trainloader, 0):
-        # get the inputs; data is a list of [inputs, labels]
-        inputs, labels = data
 
-        # zero the parameter gradients
-        optimizer.zero_grad()
+    # get the inputs; data is a list of [inputs, labels]
+    inputs = X_train
+    labels = y_train
+    # zero the parameter gradients
+    optimizer.zero_grad()
 
-        # forward + backward + optimize
-        outputs = net(inputs)
-        loss = criterion(outputs, labels)
-        loss.backward()
-        optimizer.step()
-
-        # print statistics
-        running_loss += loss.item()
-        if i % 2000 == 1999:    # print every 2000 mini-batches
-            print('[%d, %5d] loss: %.3f' %
-                  (epoch + 1, i + 1, running_loss / 2000))
-            running_loss = 0.0
+    # forward + backward + optimize
+    outputs = net(inputs)
+    loss = criterion(outputs, labels)
+    loss.backward()
+    optimizer.step()
+    # print statistics
+    print(epoch,loss.item())
 
 print('Finished Training')
 
 
-PATH = './cifar_net.pth'
+PATH = './Touhou.pth'
 torch.save(net.state_dict(), PATH)
