@@ -50,6 +50,7 @@ class ProjectTouhou:
         self.model.fc = nn.Linear(self.model.fc.in_features, len(self.available_moves))
         if load:
             self.model.load_state_dict(torch.load('model'))
+            self.model.load_state_dict(torch.load('model'))
         self.model.cuda()
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=0.0001)
 

@@ -17,6 +17,10 @@ import numpy as np
 import skimage.color
 import skimage.io
 import fpstimer
+from torch import nn, optim
+import torch
+from PIL import Image
+from numpy import asarray
 
 
 def rgb2gray(rgb):
@@ -40,7 +44,7 @@ class touhou_handler:
         self.frame_heap = []
         self.frame_count = 0
 
-        self.available_moves = (['z'], ['shift', 'up', 'z'], ['shift', 'left', 'z'], ['shift', 'down', 'z'], ['shift', 'right', 'z'])
+        self.available_moves = (('z'), ('shift', 'up', 'z'), ('shift', 'left', 'z'), ('shift', 'down', 'z'), ('shift', 'right', 'z'))
 
         if 'data' not in os.listdir():
             os.mkdir('data')
@@ -51,6 +55,11 @@ class touhou_handler:
 
         self.hp = 255
 
+        self.net = models.resnet18(pretrained=True)
+        self.net.conv1 = nn.Conv2d(1, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
+        self.net.load_state_dict(torch.load('Touhou.pth'))
+        self.net = self.net.cuda()
+        self.net.eval()
 
     def get_frame(self):
         return cv2.cvtColor(next(self.frame_handler).reshape(480, 640, 4), cv2.COLOR_BGRA2RGB)
@@ -62,11 +71,17 @@ class touhou_handler:
             plt.imsave(self.data_path + str(self.frame_count) + '_' + '_'.join(tmp[1])+ '.png', tmp[0])
             self.frame_count += 1
 
+    def select(self, frame):
+        frame = asarray(Image.fromarray(np.uint8(frame)).convert('L'))
+        print(frame)
+        print(frame.shape)
+        conf, move = torch.max(self.net(torch.tensor([[frame]]).cuda() / 255), 1)
+        return self.available_moves[move[0]]
 
     def GameOn(self):
         self.frame = self.get_frame()
         self.start = time.time()
-        input = []
+        inputs = []
         while (True):
             if keyboard.is_pressed('/'):  # if key 'q' is pressed
                 print('You Pressed the Key! :3')
@@ -76,27 +91,28 @@ class touhou_handler:
             self.frame = self.get_frame()
 
             res = self.get_status()
-            self.input_handler.release_input(input)
+            self.input_handler.release_input(inputs)
             if self.death_reset > 0:
                 self.death_reset -= 1
                 self.frame_heap = []
-                input = ['z']
+                inputs = ['z']
             elif res == -10:
-                input = ['z']
+                inputs = ['z']
                 self.death_reset = 10
                 self.frame_heap = []
             elif res == -20:
-                input = ['z']
+                inputs = ['z']
                 self.death_reset = 10
                 self.frame_heap = []
                 time.sleep(0.5)
             else:
-                input = random.choice(self.available_moves)
-                self.save_frame(self.frame, input)
+                inputs = self.select(self.frame)
+                print(inputs)
+                self.save_frame(self.frame, inputs)
             #time.sleep(0.05)
-            self.input_handler.set_input(input)
+            self.input_handler.set_input(inputs)
             self.timer.sleep()
-            print(1 / (time.time() - self.start), input,self.death_reset)
+            print(1 / (time.time() - self.start), inputs,self.death_reset)
             self.start = time.time()
 
         self.video_handler.close()
@@ -113,7 +129,6 @@ class touhou_handler:
             self.hp = 255
             return -20
         return 10
-
 
 
 if __name__ == "__main__":
